@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ComicCraft turns a story beat into a three-panel comic concept."
+    />
+    <title>ComicCraft — from beat to board</title>
+    <link rel="icon" href="{{ url_for('static', path='favicon.svg') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    {% if result is defined and result %}
+      {% set comic = result %}
+    {% elif comic is defined and comic %}
+      {% set comic = comic %}
+    {% else %}
+      {% set comic = none %}
+    {% endif %}
+
+    <div class="app-shell">
+      <header class="masthead">
+        <a class="brand" href="/" data-testid="link-brand" aria-label="ComicCraft home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <span class="brand-name">Comic<em>Craft</em></span>
+        </a>
+
+        <div class="masthead-tools">
+          <a class="text-link" href="#how-it-works" data-testid="link-how-it-works">How it works</a>
+          <span class="demo-stamp" data-testid="status-demo-mode">
+            {% if ai_available %}Gemini ready{% else %}Demo mode{% endif %}
+          </span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="prompt-column" aria-labelledby="page-title">
+          <p class="eyebrow">A tiny writers' room</p>
+          <h1 id="page-title">
+            Make the
+            <span class="quiet">moment visible.</span>
+          </h1>
+          <p class="lede">
+            Give ComicCraft one story beat. Get a rough page to argue with, build on,
+            or keep in your notebook.
+          </p>
+
+          <form
+            class="prompt-form"
+            id="generate-form"
+            action="/generate"
+            method="post"
+            data-testid="form-generate-comic"
+          >
+            <div class="field">
+              <label class="field-label" for="prompt">
+                Story beat
+                <span id="prompt-count">0 / 280</span>
+              </label>
+              <textarea
+                class="prompt-input"
+                id="prompt"
+                name="prompt"
+                maxlength="280"
+                minlength="10"
+                required
+                placeholder="A retired lighthouse keeper hears a second foghorn..."
+                data-testid="input-story-prompt"
+              >{{ prompt_value|default(prompt|default('', true), true) }}</textarea>
+            </div>
+
+            <div class="prompt-hints" aria-label="Prompt starters">
+              <button
+                class="hint-chip"
+                type="button"
+                data-prompt="A retired lighthouse keeper hears a second foghorn from the empty sea."
+                data-testid="button-prompt-starter-lighthouse"
+              >quiet mystery</button>
+              <button
+                class="hint-chip"
+                type="button"
+                data-prompt="The last strawberry on Earth rolls beneath a suspicious vending machine."
+                data-testid="button-prompt-starter-strawberry"
+              >small absurdity</button>
+              <button
+                class="hint-chip"
+                type="button"
+                data-prompt="Two siblings trade their childhood secrets for one more minute of daylight."
+                data-testid="button-prompt-starter-siblings"
+              >tender turn</button>
+            </div>
+
+            <div class="select-grid">
+              <div class="select-wrap">
+                <label class="field-label" for="visual-style">Linework</label>
+                <select
+                  class="select-input"
+                  id="visual-style"
+                  name="visual_style"
+                  data-testid="select-visual-style"
+                >
+                  <option value="ink-and-wash">Ink and wash</option>
+                  <option value="risograph">Risograph poster</option>
+                  <option value="scratchboard">Scratchboard noir</option>
+                </select>
+              </div>
+              <div class="select-wrap">
+                <label class="field-label" for="palette">Signal</label>
+                <select
+                  class="select-input"
+                  id="palette"
+                  name="palette"
+                  data-testid="select-color-palette"
+                >
+                  <option value="signal-red">Signal red</option>
+                  <option value="sea-glass">Sea glass</option>
+                  <option value="night-bus">Night bus</option>
+                </select>
+              </div>
+            </div>
+
+            <button class="submit-button" type="submit" data-testid="button-generate-comic">
+              <span>Draw a rough page</span>
+              <span class="button-arrow" aria-hidden="true"></span>
+            </button>
+            <p class="form-note">
+              {% if ai_available %}
+                Gemini mode: story, dialogue, and panel artwork will be generated together.
+              {% else %}
+                Demo mode: local story beats and panel artwork keep the board working without a key.
+                Add <code>GEMINI_API_KEY</code> or <code>GOOGLE_API_KEY</code> in your environment to enable Gemini.
+              {% endif %}
+            </p>
+          </form>
+        </section>
+
+        <section class="preview-column" aria-labelledby="preview-title">
+          <div class="preview-heading">
+            <div>
+              <h2 id="preview-title">The rough page</h2>
+              <p class="preview-subtitle">three beats · one useful next move</p>
+            </div>
+            <div class="preview-actions">
+              <button
+                class="copy-button"
+                id="copy-brief"
+                type="button"
+                {% if not comic %}disabled{% endif %}
+                data-testid="button-copy-brief"
+              >Copy brief</button>
+              <button
+                class="export-button"
+                id="export-pdf"
+                type="button"
+                {% if not comic %}disabled{% endif %}
+                data-testid="button-export-pdf"
+              >Export PDF</button>
+            </div>
+          </div>
+
+          <div class="preview-frame" id="preview-frame">
+            <div class="state empty-state" id="empty-state" {% if comic %}hidden{% endif %} data-testid="state-empty">
+              <div class="empty-art" aria-hidden="true"><span></span><span></span><span></span></div>
+              <h3>Put a beat on the page.</h3>
+              <p>The first pass is allowed to be strange. That is where the useful stuff hides.</p>
+            </div>
+
+            <div class="state loading-state hidden" id="loading-state" data-testid="state-loading" aria-live="polite">
+              <div class="loading-label">
+                <span>Assembling a page</span>
+                <strong>writing / framing / cutting</strong>
+              </div>
+              <div class="loading-grid" aria-hidden="true">
+                <div class="skeleton-panel"></div>
+                <div class="skeleton-panel"></div>
+                <div class="skeleton-panel"></div>
+              </div>
+            </div>
+
+            <div class="state error-state {% if not error %}hidden{% endif %}" id="error-state" data-testid="state-error" aria-live="assertive">
+              <div class="error-mark" aria-hidden="true">!</div>
+              <h3>That panel tore.</h3>
+              <p id="error-message">{{ error|default("The prompt could not become a page this time. Try the same idea with one clear action.", true) }}</p>
+              <button class="retry-button" type="button" id="retry-button" data-testid="button-retry-generation">Try again</button>
+            </div>
+
+            {% if comic %}
+              {% set panels = comic.panels|default([], true) %}
+              <div class="comic-sheet" id="comic-sheet" data-testid="comic-preview">
+                <span class="comic-sheet-header">{{ comic.title|default("Untitled page", true) }}</span>
+                {% for panel in panels[:3] %}
+                  <article class="comic-panel panel-{{ loop.index }}" data-testid="comic-panel-{{ loop.index }}">
+                    <div class="panel-scene">
+                      {% if panel.image_url %}
+                        <img class="panel-image" src="{{ panel.image_url }}" alt="{{ panel.image_alt|default('Generated comic panel', true) }}" />
+                      {% endif %}
+                      <span class="scene-dots" aria-hidden="true"></span>
+                      <span class="speech-bubble">{{ panel.dialogue|default(panel.speech|default("...", true), true) }}</span>
+                    </div>
+                    <div class="caption-copy">
+                      <span class="panel-number">PANEL 0{{ loop.index }}</span>
+                      <span class="panel-scene-label">{{ panel.scene|default("Story beat", true) }}</span>
+                      <p>{{ panel.visual|default(panel.caption|default(panel.copy|default("A beat worth keeping.", true), true), true) }}</p>
+                    </div>
+                  </article>
+                {% endfor %}
+              </div>
+              <div class="board-footer">
+                <span>{{ comic.style|default("ink and wash", true) }} / editorial pass</span>
+                <span>{{ comic.status|default("concept ready", true) }}</span>
+              </div>
+            {% else %}
+              <div class="comic-sheet hidden" id="comic-sheet" data-testid="comic-preview"></div>
+              <div class="board-footer hidden" id="board-footer">
+                <span id="board-style">ink and wash / editorial pass</span>
+                <span id="board-status">concept ready</span>
+              </div>
+            {% endif %}
+          </div>
+        </section>
+      </main>
+
+      <section class="how-it-works" id="how-it-works" aria-labelledby="how-title">
+        <div>
+          <p class="eyebrow">No blank canvas panic</p>
+          <h2 id="how-title">A little structure for the messy middle.</h2>
+          <p class="how-it-works-intro">
+            ComicCraft keeps the first pass light: enough shape to see the story,
+            enough room to make it yours.
+          </p>
+        </div>
+        <div class="steps">
+          <article class="step">
+            <span class="step-number">01 / PITCH</span>
+            <h3>Write the hinge.</h3>
+            <p>One character, one pressure point, one change. Rough is a feature here.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">02 / FRAME</span>
+            <h3>Find the rhythm.</h3>
+            <p>The beat becomes three moments: setup, turn, and the look after.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">03 / KEEP</span>
+            <h3>Take the spark.</h3>
+            <p>Copy the brief, redraw the page, or use the odd little detail as your way in.</p>
+          </article>
+        </div>
+      </section>
+
+      <footer class="footer-note">
+        <span><strong>ComicCraft</strong> / a page-sized thought experiment</span>
+        <span>Made for the first draft</span>
+      </footer>
+    </div>
+
+    <script id="initial-comic-data" type="application/json">{{ comic|tojson if comic else "null" }}</script>
+    <script>
+      (() => {
+        const form = document.getElementById("generate-form");
+        const prompt = document.getElementById("prompt");
+        const promptCount = document.getElementById("prompt-count");
+        const emptyState = document.getElementById("empty-state");
+        const loadingState = document.getElementById("loading-state");
+        const errorState = document.getElementById("error-state");
+        const errorMessage = document.getElementById("error-message");
+        const retryButton = document.getElementById("retry-button");
+        const copyButton = document.getElementById("copy-brief");
+        const exportButton = document.getElementById("export-pdf");
+        const previewFrame = document.getElementById("preview-frame");
+        const starterButtons = document.querySelectorAll("[data-prompt]");
+        const initialComicData = document.getElementById("initial-comic-data");
+        let latestComic = initialComicData ? JSON.parse(initialComicData.textContent || "null") : null;
+        let latestBrief = "";
+
+        const initialSheet = document.getElementById("comic-sheet");
+        if (initialSheet && !initialSheet.classList.contains("hidden")) {
+          latestBrief = initialSheet.innerText.trim();
+        }
+
+        const escapeHtml = (value) =>
+          String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+
+        const updateCount = () => {
+          promptCount.textContent = `${prompt.value.length} / 280`;
+        };
+
+        const showState = (state) => {
+          emptyState.hidden = state !== "empty";
+          loadingState.classList.toggle("hidden", state !== "loading");
+          errorState.classList.toggle("hidden", state !== "error");
+          const sheet = document.getElementById("comic-sheet");
+          const footer = document.getElementById("board-footer");
+          if (sheet) sheet.classList.toggle("hidden", state !== "result");
+          if (footer) footer.classList.toggle("hidden", state !== "result");
+          previewFrame.setAttribute("aria-busy", state === "loading" ? "true" : "false");
+        };
+
+        const panelData = (data) => {
+          const result = data?.result || data?.comic || data;
+          const panels = Array.isArray(result?.panels) ? result.panels : [];
+          return {
+            title: result?.title || "New rough page",
+            style: result?.style || document.getElementById("visual-style").value,
+            status: result?.status || "concept ready",
+            generation_mode: result?.generation_mode || "DEMO_MODE",
+            provider: result?.provider || "Local fallback",
+            generation_notice: result?.generation_notice || "",
+            panels: panels.slice(0, 3).map((panel, index) => {
+              if (typeof panel === "string") {
+                return {
+                  dialogue: "...",
+                  caption: panel,
+                  visual: panel,
+                  scene: `Story beat ${index + 1}`,
+                  image_url: "",
+                  image_alt: `Comic panel ${index + 1}`,
+                };
+              }
+              return {
+                number: panel?.number || String(index + 1).padStart(2, "0"),
+                scene: panel?.scene || ["Establishing shot", "The turn", "Forward motion"][index],
+                dialogue: panel?.dialogue || panel?.speech || ["Look closer.", "Wait — did you hear that?", "Now we know."][index],
+                caption: panel?.caption || panel?.copy || ["The world holds its breath.", "The small thing changes shape.", "A door, finally, in the dark."][index],
+                visual: panel?.visual || panel?.caption || panel?.copy || "",
+                image_url: panel?.image_url || "",
+                image_alt: panel?.image_alt || `Comic panel ${index + 1}`,
+              };
+            }),
+          };
+        };
+
+        const renderComic = (data) => {
+          const comic = panelData(data);
+          while (comic.panels.length < 3) {
+            const index = comic.panels.length;
+            comic.panels.push({
+              number: String(index + 1).padStart(2, "0"),
+              scene: ["Establishing shot", "The turn", "Forward motion"][index],
+              dialogue: ["Look closer.", "Wait — did you hear that?", "Now we know."][index],
+              caption: ["The world holds its breath.", "The small thing changes shape.", "A door, finally, in the dark."][index],
+              visual: ["The world holds its breath.", "The small thing changes shape.", "A door, finally, in the dark."][index],
+              image_url: "",
+              image_alt: `Comic panel ${index + 1}`,
+            });
+          }
+          latestComic = comic;
+          const sheet = document.getElementById("comic-sheet");
+          sheet.innerHTML = `
+            <span class="comic-sheet-header">${escapeHtml(comic.title)}</span>
+            ${comic.panels.map((panel, index) => `
+              <article class="comic-panel panel-${index + 1}" data-testid="comic-panel-${index + 1}">
+                <div class="panel-scene">
+                    ${panel.image_url ? `<img class="panel-image" src="${escapeHtml(panel.image_url)}" alt="${escapeHtml(panel.image_alt)}" />` : ""}
+                  <span class="scene-dots" aria-hidden="true"></span>
+                  <span class="speech-bubble">${escapeHtml(panel.dialogue)}</span>
+                </div>
+                <div class="caption-copy">
+                  <span class="panel-number">PANEL 0${index + 1}</span>
+                    <span class="panel-scene-label">${escapeHtml(panel.scene)}</span>
+                    <p>${escapeHtml(panel.visual || panel.caption)}</p>
+                </div>
+              </article>
+            `).join("")}
+          `;
+          document.getElementById("board-style").textContent = `${comic.style} / editorial pass`;
+          document.getElementById("board-status").textContent = comic.status;
+          latestBrief = `${comic.title}\n\n${comic.panels.map((panel, index) => `Panel ${index + 1}: ${panel.dialogue}\n${panel.caption}`).join("\n\n")}`;
+          copyButton.disabled = false;
+           exportButton.disabled = false;
+          showState("result");
+          document.getElementById("preview-title").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+
+        prompt.addEventListener("input", updateCount);
+        updateCount();
+
+        starterButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            prompt.value = button.dataset.prompt || "";
+            updateCount();
+            prompt.focus();
+          });
+        });
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (prompt.value.trim().length < 10) {
+            errorMessage.textContent = "Give the page one clear beat — at least a sentence fragment.";
+            showState("error");
+            prompt.focus();
+            return;
+          }
+          showState("loading");
+          copyButton.disabled = true;
+          exportButton.disabled = true;
+
+          try {
+            const response = await fetch(form.action, {
+              method: "POST",
+              body: new FormData(form),
+              headers: { Accept: "application/json" },
+            });
+            const contentType = response.headers.get("content-type") || "";
+            if (!response.ok) throw new Error(`Request failed with status ${response.status}.`);
+            if (contentType.includes("application/json")) {
+              const data = await response.json();
+              if (data.error) throw new Error(data.error);
+              renderComic(data);
+            } else {
+              const html = await response.text();
+              document.open();
+              document.write(html);
+              document.close();
+            }
+          } catch (error) {
+            errorMessage.textContent = error.message || "The page could not be assembled. Try once more.";
+            showState("error");
+          }
+        });
+
+        retryButton.addEventListener("click", () => form.requestSubmit());
+
+        copyButton.addEventListener("click", async () => {
+          if (!latestBrief) return;
+          try {
+            await navigator.clipboard.writeText(latestBrief);
+            copyButton.textContent = "Copied";
+            window.setTimeout(() => { copyButton.textContent = "Copy brief"; }, 1600);
+          } catch {
+            errorMessage.textContent = "Copy is not available in this browser. Select the page text instead.";
+          }
+        });
+
+         exportButton.addEventListener("click", async () => {
+           if (!latestComic) return;
+           exportButton.disabled = true;
+           exportButton.textContent = "Making PDF…";
+           try {
+             const response = await fetch("/export/pdf", {
+               method: "POST",
+               headers: { "Content-Type": "application/json", Accept: "application/pdf" },
+               body: JSON.stringify({ comic: latestComic }),
+             });
+             if (!response.ok) throw new Error("The comic PDF could not be created.");
+             const blob = await response.blob();
+             const downloadUrl = URL.createObjectURL(blob);
+             const link = document.createElement("a");
+             link.href = downloadUrl;
+             link.download = "comiccraft-comic.pdf";
+             link.click();
+             URL.revokeObjectURL(downloadUrl);
+           } catch (error) {
+             errorMessage.textContent = error.message || "The comic PDF could not be created.";
+             showState("error");
+           } finally {
+             exportButton.disabled = false;
+             exportButton.textContent = "Export PDF";
+           }
+         });
+      })();
+    </script>
+  </body>
+</html>

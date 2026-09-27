@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ComicCraft AI App"
+description = "A focused demo-mode comic concept generator with a FastAPI backend and a simple HTML interface for turning story prompts into comic panels."
+version = "1.0.0"
+id = "artifacts/comiccraft-ai-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18089
+
+[services.development]
+run = "pnpm --filter @workspace/comiccraft-ai-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/comiccraft-ai-app", "run", "build" ]
+
+[services.production.run]
+args = [ "uv", "run", "--project", ".", "uvicorn", "app:app", "--app-dir", "artifacts/comiccraft-ai-app", "--host", "0.0.0.0", "--port", "18089" ]
+
+[services.production.health.startup]
+path = "/"
+
+[services.env]
+PORT = "18089"
+BASE_PATH = "/"

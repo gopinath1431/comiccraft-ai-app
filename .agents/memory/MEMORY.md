@@ -1,0 +1,1 @@
+- [Python web artifact runner](python-web-artifact.md) — FastAPI/Jinja apps can keep the web artifact router while running Uvicorn through the managed workflow.
